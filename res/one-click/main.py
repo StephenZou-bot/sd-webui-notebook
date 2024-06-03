@@ -79,14 +79,11 @@ from colorama import init, Fore, Back, Style
 torch_ver = torch.__version__
 cuda_ver = torch.version.cuda
 gpu_status = f"{torch.cuda.get_device_name(torch.cuda.current_device())}" if torch.cuda.is_available() else "No GPU detected."
-
-if 'content' in os.listdir('/'):
-    root_path = "/content"
+if 'COLAB_GPU' in os.environ:
     ui = "/content"
     env = 'Colab'
-elif 'kaggle' in os.listdir('/'):
-    root_path = "/kaggle/working"
-    ui = "/kaggle/working"
+elif 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
+    ui = "/home"
     env = 'Kaggle'
 else:
      cprint('Error. Enviroment not detected', color="flat_red")

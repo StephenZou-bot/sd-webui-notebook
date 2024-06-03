@@ -4,38 +4,57 @@ import time
 import torch
 from colablib.colored_print import cprint, print_line
 
-if 'content' in os.listdir('/'):
+# Detect environment using environment variables
+if 'COLAB_GPU' in os.environ:
     ui = "/content"
     env = 'Colab'
-elif 'kaggle' in os.listdir('/'):
-    ui = "/kaggle/working"
+elif 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
+    ui = "/home"
     env = 'Kaggle'
 else:
-     cprint('Error. Enviroment not detected', color="flat_red")
+    cprint('Error. Environment not detected', color="flat_red")
+    exit(1)
     
 branch = "master"
-ui_path = os.path.join(ui, "x1101")
+ui_path = os.path.join(ui, "sdw")
 git_path = os.path.join(ui_path, "extensions")
 
 torch_ver = torch.__version__
 cuda_ver = torch.version.cuda
 is_gpu = "Yes." if torch.cuda.is_available() else "GPU not detected."
 
-def kontolondon(oppai, asu, si_kontol, kntl, debug=True):   
-    start_time = time.time() 
-    cprint(f"    > {asu}", color="flat_cyan")
-    try:
-        #subprocess.run(oppai, check=True, shell=True, text=True)  # for debug
-        subprocess.run(oppai, check=True, shell=True, text=True,  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        si_kontol += 1
-    except subprocess.CalledProcessError as e:
-        print(f"Error at [{asu}]: {e}")
-        kntl += 1
-    end_time = time.time()
-    return si_kontol, kntl, end_time - start_time
+def runSh(args, *, output=False, shell=False, cd=None):
+    import subprocess, shlex
+
+    if not shell:
+        if output:
+            proc = subprocess.Popen(
+                shlex.split(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cd
+            )
+            while True:
+                output = proc.stdout.readline()
+                if output == b"" and proc.poll() is not None:
+                    return
+                if output:
+                    print(output.decode("utf-8").strip())
+        return subprocess.run(shlex.split(args), cwd=cd).returncode
+    else:
+        if output:
+            return (
+                subprocess.run(
+                    args,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    cwd=cd,
+                )
+                .stdout.decode("utf-8")
+                .strip()
+            )
+        return subprocess.run(args, shell=True, cwd=cd).returncode
 
 if __name__ == "__main__":   
-    cprint(f"[+] PyTorch Version :", torch_ver, "| Cuda :", cuda_ver, "| GPU Access :", is_gpu, color="flat_green")
+    cprint(f"[+] PyTorch Version : {torch_ver} | Cuda : {cuda_ver} | GPU Access : {is_gpu}", color="flat_green")
     print_line(0)
     
     rudi = [
@@ -59,10 +78,9 @@ if __name__ == "__main__":
 
     agus = []
     
-    if 'content' in os.listdir('/'):
+    if env == 'Colab':
         agus.append(("pip install xformers==0.0.25 --no-deps", "Installing xformers..."))
-    elif 'kaggle' in os.listdir('/'):
-        #agus.append(("pip install torch==2.1.2+cu121 torchvision==0.16.2+cu121 torchaudio==2.1.2 --extra-index-url https://download.pytorch.org/whl/cu121", "Installing torch..."))
+    elif env == 'Kaggle':
         agus.append(("pip install xformers==0.0.26.post1", "Installing xformers..."))
     else:
         agus.append((""))
@@ -73,8 +91,16 @@ if __name__ == "__main__":
     
     cprint(f"[+] Installing [{env}] Requirements", color="flat_yellow")
     for oppai, asu in rudi + yanto + agus:
-        si_kontol, kntl, command_time = kontolondon(oppai, asu, si_kontol, kntl)
-        total_time += command_time
+        cprint(f"    > {asu}", color="flat_cyan")
+        start_time = time.time()
+        return_code = runSh(oppai, shell=True)
+        if return_code == 0:
+            si_kontol += 1
+        else:
+            cprint(f"Error at [{asu}]: Command failed with return code {return_code}", color="flat_red")
+            kntl += 1
+        end_time = time.time()
+        total_time += end_time - start_time
         
     print_line(0)
     cprint(f"[+] {kntl} of {si_kontol} error found. All completed within: {total_time:.2f} secs", color="flat_yellow")
