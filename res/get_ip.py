@@ -4,6 +4,7 @@ from colorama import init, Fore, Back, Style
 from colablib.colored_print import cprint, print_line
 import time
 import subprocess
+import threading
 try:
     start_colab
 except:
