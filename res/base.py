@@ -20,7 +20,6 @@ def remove_aiohttp():
 remove_aiohttp()
 install_colablib()
 
-
 from colablib.colored_print import cprint, print_line
 
 def detect_environment():
@@ -98,10 +97,10 @@ if __name__ == "__main__":
     ]
 
     env_specific_commands = []
-#     if env == "Colab":
-#         env_specific_commands.append(("pip install xformers==0.0.25 --no-deps", "Install xformers for Colab"))
-#     elif env == "Kaggle":
-#         env_specific_commands.append(("pip install xformers==0.0.26.post1", "Install xformers for Kaggle"))
+    # if env == "Colab":
+    #     env_specific_commands.append(("pip install xformers==0.0.25 --no-deps", "Install xformers for Colab"))
+    # elif env == "Kaggle":
+    #     env_specific_commands.append(("pip install xformers==0.0.26.post1", "Install xformers for Kaggle"))
 
     total_success, total_error, grand_total_time = 0, 0, 0
 
