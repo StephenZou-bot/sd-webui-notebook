@@ -41,8 +41,7 @@ class CustomDirs(BaseModel):
     url: str
     dst: str
 
-def create_custom_dirs(hf_token):
-    user_header = f"Authorization: Bearer {hf_token}"
+def create_custom_dirs():
     return {
         "model"       : CustomDirs(url=custom_model_url, dst=models_dir),
         "vae"         : CustomDirs(url=custom_vae_url, dst=vaes_dir),
@@ -69,12 +68,7 @@ def parse_urls(filename):
             result[key].extend(urls)
     return result
 
-def get_filename(url, token=None):
-    headers = {}
-    if token:
-        headers['Authorization'] = f'Bearer {token}'
-
-def custom_download(custom_dirs, user_header):
+def custom_download(custom_dirs, user_header, civitai_api_key):
     for key, value in custom_dirs.items():
         urls     = value.url.split(",")  # Split the comma-separated URLs
         dst      = value.dst
@@ -100,13 +94,13 @@ def custom_download(custom_dirs, user_header):
                 elif key == "extensions":
                     clone_repo(url, cwd=dst)
                 else:
-                   download(url=url, filename=filename, user_header=user_header, dst=dst, quiet=False)
+                    download(url=url, filename=filename, user_header=user_header, dst=dst, quiet=False)
 
-def download_from_textfile(filename, custom_dirs):
+def download_from_textfile(filename, custom_dirs, civitai_api_key):
     for key, urls in parse_urls(filename).items():
         for url in urls:
             if "civitai.com" in url:
-                url += "&ApiKey={civitai_api_key}" if "?" in url else "?ApiKey={civitai_api_key}"
+                url += f"&ApiKey={civitai_api_key}" if "?" in url else f"?ApiKey={civitai_api_key}"
         key_lower = key.lower()
         if key_lower in custom_dirs:
             if custom_dirs[key_lower].url:
@@ -127,24 +121,25 @@ def custom_download_list(url, root_path, user_header):
     download(url=url, filename=filename, user_header=user_header, dst=root_path, quiet=True)
     return filepath
 
-def main(pastebin_url, hf_token):
-    start_time    = time.time()
+def main(pastebin_url, hf_token, civitai_api_key):
+    start_time = time.time()
     textfile_path = download_list
-    custom_dirs = create_custom_dirs(hf_token)
+    custom_dirs = create_custom_dirs()
     user_header = f"Authorization: Bearer {hf_token}"
     if pastebin_url:
         textfile_path = custom_download_list(pastebin_url, root_path, user_header)
-    download_from_textfile(textfile_path, custom_dirs)
-    custom_download(custom_dirs, user_header)
+    download_from_textfile(textfile_path, custom_dirs, civitai_api_key)
+    custom_download(custom_dirs, user_header, civitai_api_key)
 
-    elapsed_time  = py_utils.calculate_elapsed_time(start_time)
+    elapsed_time = py_utils.calculate_elapsed_time(start_time)
     print_line(0, color="green")
     cprint(f"[+] Download completed within {elapsed_time}.", color="flat_yellow")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download script with pastebin URL and HF token.")
-    parser.add_argument("--pastebin_url", type=argparse.FileType('r'), required=True, help="The Pastebin URL.")
+    parser.add_argument("--pastebin_url", type=str, required=True, help="The Pastebin URL.")
     parser.add_argument("--hf_token", type=str, required=True, help="The Hugging Face token.")
-    
+    parser.add_argument("--civitai_api_key", type=str, required=True, help="The CivitAI API key.")
+
     args = parser.parse_args()
-    main(args.pastebin_url, args.hf_token)
+    main(args.pastebin_url, args.hf_token, args.civitai_api_key)
