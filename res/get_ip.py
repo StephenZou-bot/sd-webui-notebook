@@ -21,6 +21,9 @@ def get_public_ip(version='ipv4'):
 
 public_ipv4 = get_public_ip(version='ipv4')
 
-tunnel_class = pickle.load(open("new_tunnel", "rb"), encoding="utf-8")
+class Tunnel:
+    pass
+
+tunnel_class = Tunnel
 tunnel_port= 1101
 tunnel = tunnel_class(tunnel_port)
