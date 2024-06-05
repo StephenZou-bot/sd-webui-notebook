@@ -3,7 +3,7 @@ import requests
 from colorama import init, Fore, Back, Style
 from colablib.colored_print import cprint, print_line
 import time
-import cloudpickle as pickle
+import subprocess
 try:
     start_colab
 except:
@@ -22,7 +22,39 @@ def get_public_ip(version='ipv4'):
 public_ipv4 = get_public_ip(version='ipv4')
 
 class Tunnel:
-    pass
+    def __init__(self, port):
+        self.port = port
+        self.tunnels = []
+
+    def add_tunnel(self, command, name, pattern, note=None):
+        tunnel_info = {
+            'command': command.format(port=self.port),
+            'name': name,
+            'pattern': pattern,
+            'note': note
+        }
+        self.tunnels.append(tunnel_info)
+
+    def start_tunnels(self):
+        self.processes = []
+        for tunnel in self.tunnels:
+            process = subprocess.Popen(tunnel['command'], shell=True)
+            self.processes.append(process)
+            print(f"Started tunnel {tunnel['name']} with command: {tunnel['command']}")
+            if tunnel['note']:
+                print(tunnel['note'])
+
+    def stop_tunnels(self):
+        for process in self.processes:
+            process.terminate()
+            print(f"Terminated tunnel process {process.pid}")
+
+    def __enter__(self):
+        self.start_tunnels()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop_tunnels()
 
 tunnel_class = Tunnel
 tunnel_port= 1101
