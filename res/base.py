@@ -2,74 +2,138 @@ import os
 import subprocess
 import time
 import torch
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+python_version = ".".join(sys.version.split(".")[:2])
+colablib_path = f"/opt/conda/lib/python{python_version}/dist-packages/colablib"
+aiohttp_path = f"/opt/conda/lib/python{python_version}/site-packages/aiohttp-3.9.1.dist-info"
+
+def install_colablib():
+    if not os.path.exists(colablib_path):
+        subprocess.run(['pip', 'install', '-q', 'git+https://github.com/StephenZou-bot/colablib'])
+
+def remove_aiohttp():
+    if os.path.exists(aiohttp_path):
+        subprocess.run(['rm', '-rf', aiohttp_path])
+        
+remove_aiohttp()
+install_colablib()
+
+
 from colablib.colored_print import cprint, print_line
 
 def detect_environment():
-    if 'COLAB_GPU' in os.environ:
-        ui = "/content"
-        env = 'Colab'
-    elif 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
-        ui = "/home"
-        env = 'Kaggle'
+    iskaggle = os.environ.get('KAGGLE_KERNEL_RUN_TYPE', '')
+    iscolab = 'COLAB_GPU' in os.environ
+    if iscolab:
+        return "/content", "Colab"
+    elif iskaggle:
+        return "/home", "Kaggle"
     else:
         cprint('Error. Environment not detected', color="flat_red")
-        return None, None
+        exit(1)
 
-def get_versions():
-    torch_ver = torch.__version__
-    cuda_ver = torch.version.cuda
-    is_gpu = "Yes." if torch.cuda.is_available() else "GPU not detected."
-    return torch_ver, cuda_ver, is_gpu
-
-def execute_command(command, description, success_count, error_count):
+def run_command(command, description, debug=True):
     start_time = time.time()
     cprint(f"    > {description}", color="flat_cyan")
     try:
-        subprocess.run(command, check=True, shell=True, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        success_count += 1
+        result = subprocess.run(command, check=True, shell=True, text=True,
+                                stdout=subprocess.PIPE if debug else subprocess.DEVNULL,
+                                stderr=subprocess.PIPE if debug else subprocess.DEVNULL)
+        if debug:
+            cprint(result.stdout, color="flat_green")
+            cprint(result.stderr, color="flat_red")
+        end_time = time.time()
+        return True, end_time - start_time
     except subprocess.CalledProcessError as e:
-        print(f"Error at [{description}]: {e}")
-        error_count += 1
+        cprint(f"Error at [{description}]: {e}", color="flat_red")
+        end_time = time.time()
+        return False, end_time - start_time
+
+def execute_commands(commands, description, debug=True):
+    cprint(f"[+] {description}", color="flat_yellow")
+    start_time = time.time()
+    success_count, error_count = 0, 0
+    for command, desc in commands:
+        success, command_time = run_command(command, desc, debug)
+        success_count += success
+        error_count += not success
     end_time = time.time()
+    cprint(f"[+] {description} completed in: {end_time - start_time:.2f} secs", color="flat_yellow")
     return success_count, error_count, end_time - start_time
 
 if __name__ == "__main__":
     ui, env = detect_environment()
-    if not ui:
-        exit(1)
-
-    ui_path = os.path.join(ui, "x1101")
+    branch = "master"
+    ui_path = os.path.join(ui, "sdw")
+    os.makedirs(ui_path, exist_ok=True)
     git_path = os.path.join(ui_path, "extensions")
-
-    torch_ver, cuda_ver, is_gpu = get_versions()
+    torch_ver = torch.__version__
+    cuda_ver = torch.version.cuda
+    is_gpu = "Yes." if torch.cuda.is_available() else "GPU not detected."
 
     cprint(f"[+] PyTorch Version: {torch_ver} | Cuda: {cuda_ver} | GPU Access: {is_gpu}", color="flat_green")
     print_line(0)
-    
-    install_commands = [
-        ("apt-get update && apt -y install aria2 && rm -rf /opt/conda/lib/python3.10/site-packages/aiohttp*", "Install aria2"),
+
+    initial_commands = [
+        ("apt-get update", "Update package list"),
+        ("apt -y install aria2", "Install aria2"),
         ("apt-get install lz4", "Install lz4"),
         ("pip install colorama", "Install colorama"),
-        ("npm install -g localtunnel", "Install localtunnel"),
-        ("curl -s -Lo /usr/bin/cl https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/bin/cl", "Install cloudflared"),
-        (f"curl -sLO https://github.com/openziti/zrok/releases/download/v0.4.23/zrok_0.4.23_linux_amd64.tar.gz && tar -xzf zrok_0.4.23_linux_amd64.tar.gz && rm -rf zrok_0.4.23_linux_amd64.tar.gz && mv {ui}/zrok /usr/bin", "Install zrok"),
-        (f"wget https://github.com/gutris1/segsmaker/raw/main/kaggle/script/pantat88.py -O {ui}/semvak_zeus.py", "Download semvak_zeus.py script")
+        ("npm install -g localtunnel", "Install localtunnel")
     ]
-    additional_commands = []
-    
-    if env == 'Colab':
-        additional_commands.append(("pip install xformers==0.0.25 --no-deps", "Install xformers"))
-    elif env == 'Kaggle':
-        additional_commands.append(("pip install xformers==0.0.26.post1", "Install xformers"))
-            
-    success_count = 0
-    error_count = 0
-    total_time = 0
-    
-    cprint(f"[+] Installing [{env}] Requirements", color="flat_yellow")
-    for command, description in install_commands + additional_commands:
-        success_count, error_count, command_time = execute_command(command, description, success_count, error_count)
-        total_time += command_time
-        
+
+    parallel_commands = [
+        ("curl -s -Lo /usr/bin/cl https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/bin/cl", "Install cloudflared"),
+        (f"cd {ui} && curl -sLO https://github.com/openziti/zrok/releases/download/v0.4.23/zrok_0.4.23_linux_amd64.tar.gz && tar -xzf zrok_0.4.23_linux_amd64.tar.gz && rm -rf zrok_0.4.23_linux_amd64.tar.gz && mv {ui}/zrok /usr/bin", "Install zrok"),
+        (f"cd {ui} && wget https://github.com/gutris1/segsmaker/raw/main/kaggle/script/pantat88.py -O {ui}/semvak_zeus.py", "Download semvak_zeus.py")
+    ]
+
+    resource_commands = [
+        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/sdw.tar.lz4 -o sdw.tar.lz4 && tar -xI lz4 -f sdw.tar.lz4 --directory={ui_path} && rm {ui}/sdw.tar.lz4", "Install UI"),
+        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/site-packages.tar.lz4 -o site-packages.tar.lz4 && tar -xI lz4 -f site-packages.tar.lz4 --directory=/opt/conda/lib/python{python_version}/site-packages && rm {ui}/site-packages.tar.lz4", "Prepare Packages"),
+        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/cache.tar.lz4 -o cache.tar.lz4 && tar -xI lz4 -f cache.tar.lz4 --directory=/ && rm {ui}/cache.tar.lz4", "Prepare Huggingface Cache"),
+        (f"cd {ui_path} && git reset --hard && git pull && git switch {branch} && git pull && git reset --hard", "Update UI")
+    ]
+
+    env_specific_commands = []
+#     if env == "Colab":
+#         env_specific_commands.append(("pip install xformers==0.0.25 --no-deps", "Install xformers for Colab"))
+#     elif env == "Kaggle":
+#         env_specific_commands.append(("pip install xformers==0.0.26.post1", "Install xformers for Kaggle"))
+
+    total_success, total_error, grand_total_time = 0, 0, 0
+
+    # Execute initial commands
+    success_count, error_count, total_time = execute_commands(initial_commands, "Installing initial requirements", debug=False)
+    total_success += success_count
+    total_error += error_count
+    grand_total_time += total_time
+
+    # Execute parallel commands
+    cprint(f"[+] Installing parallel commands for [{env}]", color="flat_yellow")
+    parallel_start_time = time.time()
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        future_to_command = {executor.submit(run_command, cmd, desc, False): desc for cmd, desc in parallel_commands}
+        for future in as_completed(future_to_command):
+            desc = future_to_command[future]
+            try:
+                success, command_time = future.result()
+                total_success += success
+                total_error += not success
+                grand_total_time += command_time
+            except Exception as exc:
+                cprint(f'Command {desc} generated an exception: {exc}', color="flat_red")
+                total_error += 1
+    parallel_end_time = time.time()
+    cprint(f"[+] Parallel commands completed in: {parallel_end_time - parallel_start_time:.2f} secs", color="flat_yellow")
+
+    # Execute resource and environment-specific commands
+    success_count, error_count, total_time = execute_commands(resource_commands + env_specific_commands, "Installing resource commands", debug=False)
+    total_success += success_count
+    total_error += error_count
+    grand_total_time += total_time
+
     print_line(0)
-    cprint(f"[+] {error_count} of {success_count} commands failed. All completed within: {total_time:.2f} secs", color="flat_yellow")
+    cprint(f"[+] {total_error} of {total_success + total_error} commands failed. All completed within: {grand_total_time:.2f} secs", color="flat_yellow")
