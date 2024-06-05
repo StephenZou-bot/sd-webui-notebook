@@ -25,6 +25,7 @@ class Tunnel:
     def __init__(self, port):
         self.port = port
         self.tunnels = []
+        self.tunnel_urls = []
 
     def add_tunnel(self, command, name, pattern, note=None):
         tunnel_info = {
@@ -39,30 +40,39 @@ class Tunnel:
         self.processes = []
         for tunnel in self.tunnels:
             process = subprocess.Popen(tunnel['command'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            self.processes.append(process)
-            print(f"{Fore.GREEN}Started tunnel {tunnel['name']} with command: {tunnel['command']}{Style.RESET_ALL}")
-            if tunnel['note']:
-                print(f"{Fore.YELLOW}{tunnel['note']}{Style.RESET_ALL}")
-            self._filter_output(process)
+            self.processes.append((process, tunnel))
+        print("Tunnel Started")
+        self._get_urls()
 
     def stop_tunnels(self):
-        for process in self.processes:
+        for process, tunnel in self.processes:
             process.terminate()
-            print(f"{Fore.RED}Terminated tunnel process {process.pid}{Style.RESET_ALL}")
+            print(f"{Fore.RED}Stopping tunnel{Style.RESET_ALL}")
 
-    def _filter_output(self, process):
+    def _get_urls(self):
+        threads = []
+        for process, tunnel in self.processes:
+            thread = threading.Thread(target=self._filter_output, args=(process, tunnel))
+            threads.append(thread)
+            thread.start()
+        
+        for thread in threads:
+            thread.join()
+
+    def _filter_output(self, process, tunnel):
         while True:
             output = process.stdout.readline()
             if output == '' and process.poll() is not None:
                 break
             if output:
-                self._print_filtered_output(output.strip())
+                self._extract_url(output.strip(), tunnel)
 
-    def _print_filtered_output(self, output):
-        if "your url is" in output or "Visit it at" in output:
-            print(f"{Fore.CYAN}{output}{Style.RESET_ALL}")
-        elif re.search(r"https?://[\w.-]+", output):
-            print(f"{Fore.CYAN}{output}{Style.RESET_ALL}")
+    def _extract_url(self, output, tunnel):
+        match = tunnel['pattern'].search(output)
+        if match:
+            url = match.group(0)
+            self.tunnel_urls.append((url, tunnel['note']))
+            print(f"* Running on: {url} {tunnel['note'] or ''}")
 
     def __enter__(self):
         self.start_tunnels()
