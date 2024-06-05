@@ -40,14 +40,14 @@ class Tunnel:
         for tunnel in self.tunnels:
             process = subprocess.Popen(tunnel['command'], shell=True)
             self.processes.append(process)
-            print(f"Started tunnel {tunnel['name']} with command: {tunnel['command']}")
+            print(f"{Fore.GREEN}Started tunnel {tunnel['name']} with command: {tunnel['command']}{Style.RESET_ALL}")
             if tunnel['note']:
-                print(tunnel['note'])
+                print(f"{Fore.YELLOW}{tunnel['note']}{Style.RESET_ALL}")
 
     def stop_tunnels(self):
         for process in self.processes:
             process.terminate()
-            print(f"Terminated tunnel process {process.pid}")
+            print(f"{Fore.RED}Terminated tunnel process {process.pid}{Style.RESET_ALL}")
 
     def __enter__(self):
         self.start_tunnels()
