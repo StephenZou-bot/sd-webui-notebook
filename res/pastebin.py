@@ -1,9 +1,6 @@
-pastebin_url = ""
-hf_token = ""
-
-#Code by Bang Furqanil
 import os
 import time
+import argparse
 from colablib.utils import py_utils
 from pydantic import BaseModel
 from colablib.utils.py_utils import get_filename
@@ -12,16 +9,21 @@ from colablib.colored_print import cprint, print_line
 from colablib.utils.config_utils import read_config
 from colablib.utils.git_utils import clone_repo
 
-if 'COLAB_GPU' in os.environ:
-    ui = "/content"
-    env = 'Colab'
-elif 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
-    ui = "/home"
-    env = 'Kaggle'
-else:
-     cprint('Error. Enviroment not detected', color="flat_red")
+def detect_environment():
+    iskaggle = os.environ.get('KAGGLE_KERNEL_RUN_TYPE', '')
+    iscolab = 'COLAB_GPU' in os.environ
+    if iscolab:
+        return "/content", "Colab"
+    elif iskaggle:
+        return "/home", "Kaggle"
+    else:
+        cprint('Error. Environment not detected', color="flat_red")
+        exit(1)
 
-webui_path = os.path.join(root_path, "x1101")
+ui, env = detect_environment()
+root_path = ui  # Assuming root_path is the same as ui
+
+webui_path = os.path.join(root_path, "sdw")
 
 custom_model_url        = ""
 custom_vae_url          = ""
@@ -34,17 +36,20 @@ lora_dir            = os.path.join(webui_path, "models", "Lora")
 embeddings_dir      = os.path.join(webui_path, "embeddings")
 extensions_dir      = os.path.join(webui_path, "extensions")
 download_list       = os.path.join(root_path, "download_list.txt")
+
 class CustomDirs(BaseModel):
     url: str
     dst: str
-user_header = f"Authorization: Bearer {hf_token}"
-custom_dirs = {
-    "model"       : CustomDirs(url=custom_model_url, dst=models_dir),
-    "vae"         : CustomDirs(url=custom_vae_url, dst=vaes_dir),
-    "embedding"   : CustomDirs(url=custom_embedding_url, dst=embeddings_dir),
-    "lora"        : CustomDirs(url=custom_LoRA_url, dst=lora_dir),
-    "extensions"  : CustomDirs(url=custom_extensions_url, dst=extensions_dir),
-}
+
+def create_custom_dirs(hf_token):
+    user_header = f"Authorization: Bearer {hf_token}"
+    return {
+        "model"       : CustomDirs(url=custom_model_url, dst=models_dir),
+        "vae"         : CustomDirs(url=custom_vae_url, dst=vaes_dir),
+        "embedding"   : CustomDirs(url=custom_embedding_url, dst=embeddings_dir),
+        "lora"        : CustomDirs(url=custom_LoRA_url, dst=lora_dir),
+        "extensions"  : CustomDirs(url=custom_extensions_url, dst=extensions_dir),
+    }
 
 def parse_urls(filename):
     content = read_config(filename)
@@ -67,9 +72,9 @@ def parse_urls(filename):
 def get_filename(url, token=None):
     headers = {}
     if token:
-        headers['Authorization'] = f'Bearer {hf_token}'
-       
-def custom_download(custom_dirs):
+        headers['Authorization'] = f'Bearer {token}'
+
+def custom_download(custom_dirs, user_header):
     for key, value in custom_dirs.items():
         urls     = value.url.split(",")  # Split the comma-separated URLs
         dst      = value.dst
@@ -97,7 +102,7 @@ def custom_download(custom_dirs):
                 else:
                    download(url=url, filename=filename, user_header=user_header, dst=dst, quiet=False)
 
-def download_from_textfile(filename):
+def download_from_textfile(filename, custom_dirs):
     for key, urls in parse_urls(filename).items():
         for url in urls:
             if "civitai.com" in url:
@@ -110,8 +115,8 @@ def download_from_textfile(filename):
                 custom_dirs[key_lower].url = ','.join(urls)
         else:
             cprint(f"Warning: Category '{key}' from the file is not found in custom_dirs.", color="flat_yellow")
-            
-def custom_download_list(url):
+
+def custom_download_list(url, root_path, user_header):
     filename = "custom_download_list.txt"
     filepath = os.path.join(root_path, filename)
     if os.path.exists(filepath):
@@ -122,15 +127,24 @@ def custom_download_list(url):
     download(url=url, filename=filename, user_header=user_header, dst=root_path, quiet=True)
     return filepath
 
-def main():
+def main(pastebin_url, hf_token):
     start_time    = time.time()
     textfile_path = download_list
+    custom_dirs = create_custom_dirs(hf_token)
+    user_header = f"Authorization: Bearer {hf_token}"
     if pastebin_url:
-        textfile_path = custom_download_list(pastebin_url)
-    download_from_textfile(textfile_path)
-    custom_download(custom_dirs)
+        textfile_path = custom_download_list(pastebin_url, root_path, user_header)
+    download_from_textfile(textfile_path, custom_dirs)
+    custom_download(custom_dirs, user_header)
 
     elapsed_time  = py_utils.calculate_elapsed_time(start_time)
     print_line(0, color="green")
     cprint(f"[+] Download completed within {elapsed_time}.", color="flat_yellow")
-main()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Download script with pastebin URL and HF token.")
+    parser.add_argument("--pastebin_url", type=argparse.FileType('r'), required=True, help="The Pastebin URL.")
+    parser.add_argument("--hf_token", type=str, required=True, help="The Hugging Face token.")
+    
+    args = parser.parse_args()
+    main(args.pastebin_url, args.hf_token)
