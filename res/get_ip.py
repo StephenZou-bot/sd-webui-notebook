@@ -38,16 +38,31 @@ class Tunnel:
     def start_tunnels(self):
         self.processes = []
         for tunnel in self.tunnels:
-            process = subprocess.Popen(tunnel['command'], shell=True)
+            process = subprocess.Popen(tunnel['command'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             self.processes.append(process)
             print(f"{Fore.GREEN}Started tunnel {tunnel['name']} with command: {tunnel['command']}{Style.RESET_ALL}")
             if tunnel['note']:
                 print(f"{Fore.YELLOW}{tunnel['note']}{Style.RESET_ALL}")
+            self._filter_output(process)
 
     def stop_tunnels(self):
         for process in self.processes:
             process.terminate()
             print(f"{Fore.RED}Terminated tunnel process {process.pid}{Style.RESET_ALL}")
+
+    def _filter_output(self, process):
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                self._print_filtered_output(output.strip())
+
+    def _print_filtered_output(self, output):
+        if "your url is" in output or "Visit it at" in output:
+            print(f"{Fore.CYAN}{output}{Style.RESET_ALL}")
+        elif re.search(r"https?://[\w.-]+", output):
+            print(f"{Fore.CYAN}{output}{Style.RESET_ALL}")
 
     def __enter__(self):
         self.start_tunnels()
