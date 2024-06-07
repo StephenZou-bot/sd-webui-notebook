@@ -9,6 +9,7 @@ import torch
 import re
 import requests
 from colorama import init, Fore, Back, Style
+from pydantic import BaseModel  # 导入BaseModel
 
 init(autoreset=True)
 
@@ -31,13 +32,13 @@ aiohttp_path = f"/opt/conda/lib/python{python_version}/site-packages/aiohttp-3.9
 remove_aiohttp()
 install_colablib()
 
-from pydantic import BaseModel
 from colablib.colored_print import cprint, print_line
 from colablib.utils import py_utils
 from colablib.utils.py_utils import get_filename
 from colablib.sd_models.downloader import aria2_download, download
 from colablib.utils.config_utils import read_config
 from colablib.utils.git_utils import clone_repo
+
 def detect_environment():
     iskaggle = os.environ.get('KAGGLE_KERNEL_RUN_TYPE', '')
     iscolab = 'COLAB_GPU' in os.environ
@@ -287,7 +288,7 @@ def main():
 
     public_ipv4 = get_public_ip(version='ipv4')
 
-    tunnel_port = 1101
+    tunnel_port = 7860
     tunnel = Tunnel(tunnel_port)
     tunnel.add_tunnel(command="cl tunnel --url localhost:{port}", name="cl", pattern=re.compile(r"[\w-]+\.trycloudflare\.com"))
     tunnel.add_tunnel(command="lt --port {port}", name="lt", pattern=re.compile(r"[\w-]+\.loca\.lt"), note="Password : " + Fore.GREEN + public_ipv4 + Style.RESET_ALL + " rerun cell if 404 error.")
@@ -297,7 +298,7 @@ def main():
 
     with tunnel:
         subprocess.run(f"echo -n {start_colab} >{webui_path}/static/colabTimer.txt", shell=True)
-        subprocess.run(f"cd {webui_path} && python launch.py --port=1101 --ngrok {args.ngrok_token} --api --xformers --theme dark --enable-insecure-extension-access --disable-console-progressbars --disable-safe-unpickle --no-half-vae", shell=True)
+        subprocess.run(f"cd {webui_path} && python launch.py --port=7860 --ngrok {args.ngrok_token} --api --xformers --theme dark --enable-insecure-extension-access --disable-console-progressbars --disable-safe-unpickle --no-half-vae", shell=True)
 
 if __name__ == "__main__":
     main()
