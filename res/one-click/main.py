@@ -256,6 +256,7 @@ def main():
 
     webui_path = os.path.join(root_path, "sdw")
 
+    # Initialize these variables here before calling create_custom_dirs
     custom_model_url = ""
     custom_vae_url = ""
     custom_embedding_url = ""
