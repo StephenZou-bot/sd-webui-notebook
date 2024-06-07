@@ -21,7 +21,3 @@ def get_public_ip(version='ipv4'):
         print(f"Error getting public {version} address:", e)
 
 public_ipv4 = get_public_ip(version='ipv4')
-
-tunnel_port= 7860
-
-tunnel = Tunnel(tunnel_port)
