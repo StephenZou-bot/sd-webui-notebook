@@ -2,161 +2,87 @@ import time
 import sys
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Thread
-
-def progress_bar():
-    sys.stdout.write('Loading \033[31mx1101.py\033[0m [')
-    sys.stdout.flush()
-    while not progress_done:
-        sys.stdout.write('\033[92m' + '■' + '\033[0m')
-        sys.stdout.flush()
-        time.sleep(1)
-    sys.stdout.write(']ok')
-    sys.stdout.flush()
-    print()
-
-def progress_bar2():    
-    sys.stdout.write('Installing \033[31mxFormers\033[0m [')
-    sys.stdout.flush()
-    while not progress_done2:
-        sys.stdout.write('\033[92m' + '■' + '\033[0m')
-        sys.stdout.flush()
-        time.sleep(10)
-    sys.stdout.write(']ok')
-    sys.stdout.flush()
-    print() 
-    
-def run_subprocesses_f():
-    global progress_done
-    if not os.path.exists("x1101"):
-        subprocess.run("pip install -q git+https://github.com/DEX-1101/colablib", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run("apt -y install -qq aria2", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run("pip install colorama", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run("pip install trash-cli && trash-put /opt/conda/lib/python3.10/site-packages/aiohttp*", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    progress_done = True
-    
-def run_subprocesses_x():
-    global progress_done2
-    if 'content' in os.listdir('/') and not os.path.exists("x1101"):
-        x_ver = "0.0.25"
-        #cprint(f"Installing xformers {x_ver}...", color="red")
-        if args.debug:
-            subprocess.run(f"pip install xformers=={x_ver} --no-deps", shell=True)
-        else:
-            subprocess.run(f"pip install xformers=={x_ver} --no-deps", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    elif 'kaggle' in os.listdir('/') and not os.path.exists("x1101"):
-        x_ver = "0.0.26.post1"
-        #cprint(f"Installing xformers {x_ver}...", color="red")
-        if args.debug:
-            subprocess.run(f"pip install xformers=={x_ver}", shell=True)
-        else:
-            subprocess.run(f"pip install xformers=={x_ver}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    progress_done2 = True
-
-#####################
-# FIRST
-progress_done = False
-progress_thread = Thread(target=progress_bar)
-subprocess_thread = Thread(target=run_subprocesses_f)
-progress_thread.start()
-subprocess_thread.start()
-subprocess_thread.join()
-progress_thread.join()
-
 import argparse
 import torch
 import re
 import requests
-from colablib.utils import py_utils
-from pydantic import BaseModel
-from colablib.utils.py_utils import get_filename
-from colablib.sd_models.downloader import aria2_download, download
-from colablib.colored_print import cprint, print_line
-from colablib.utils.config_utils import read_config
-from colablib.utils.git_utils import clone_repo
 from colorama import init, Fore, Back, Style
 
-torch_ver = torch.__version__
-cuda_ver = torch.version.cuda
-gpu_status = f"{torch.cuda.get_device_name(torch.cuda.current_device())}" if torch.cuda.is_available() else "No GPU detected."
-if 'COLAB_GPU' in os.environ:
-    ui = "/content"
-    env = 'Colab'
-elif 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
-    ui = "/home"
-    env = 'Kaggle'
-else:
-     cprint('Error. Enviroment not detected', color="flat_red")
-
-
-################# UI #################
-branch = "master"
-ui_path = os.path.join(ui, "x1101")
-git_path = os.path.join(ui_path, "extensions")
-
-ui = "/kaggle/working"
-
-def run_subprocesses(commands, show_output=False):
-    processes = []
-    for i, (command, message) in enumerate(commands):
-        cprint(f"    > {message}", color="flat_cyan")
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        processes.append((i, process))
-        process.wait()  # Wait for the process to complete
-        stdout, stderr = process.communicate()
-        output = stdout.decode() + stderr.decode()
-        if args.debug:
-            show_output = True
-            print(output)  # Show all output for each process
-        if process.returncode != 0:
-            print(f"Subprocess {i+1} failed with error: {stderr.decode().strip()}")
-
-commands = [
-    ("apt-get install -y aria2", "aria2"),
-    ("npm install -g localtunnel", "localtunnel"),
-    ("apt-get install lz4", "lz4"),
-    ("curl -s -Lo /usr/bin/cl https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/bin/cl", "cloudflared"),
-    (f"curl -sLO https://github.com/openziti/zrok/releases/download/v0.4.23/zrok_0.4.23_linux_amd64.tar.gz && tar -xzf zrok_0.4.23_linux_amd64.tar.gz && rm -rf zrok_0.4.23_linux_amd64.tar.gz && mv {ui}/zrok /usr/bin", "zrok"),
-    (f"aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/x1101/UI/resolve/main/ui.tar.lz4 -o ui.tar.lz4 && tar -xI lz4 -f ui.tar.lz4 && mv -f {ui}/kaggle/working/x1101 {ui} && rm {ui}/ui.tar.lz4 && rm -rf {ui}/kaggle", "Installing UI..."),
-    (f"cd {ui_path} && git reset --hard && git pull && git switch {branch} && git pull && git reset --hard", "Updating UI..."),
-    (f"rm -rf {git_path}/* && cd {git_path} && git clone https://github.com/BlafKing/sd-civitai-browser-plus && git clone https://github.com/Mikubill/sd-webui-controlnet && git clone https://github.com/DominikDoom/a1111-sd-webui-tagcomplete && git clone https://github.com/DEX-1101/sd-encrypt-image && git clone https://github.com/DEX-1101/timer && git clone https://github.com/gutris1/sd-hub && git clone https://github.com/Bing-su/adetailer.git && git clone https://github.com/zanllp/sd-webui-infinite-image-browsing && git clone https://github.com/thomasasfk/sd-webui-aspect-ratio-helper && git clone https://github.com/hako-mikan/sd-webui-regional-prompter && git clone https://github.com/picobyte/stable-diffusion-webui-wd14-tagger && git clone https://github.com/Coyote-A/ultimate-upscale-for-automatic1111 && git clone https://github.com/Haoming02/sd-webui-tabs-extension", "Cloning Extensions..."),
-    ("", "Done")
-]
-
-################# UI ##################
-
-################# PASTEBIN DL #################
-webui_path = os.path.join(root_path, "x1101")
-
-custom_model_url        = ""
-custom_vae_url          = ""
-custom_embedding_url    = ""
-custom_LoRA_url         = ""
-custom_extensions_url   = ""
-models_dir          = os.path.join(webui_path, "models", "Stable-diffusion")
-vaes_dir            = os.path.join(webui_path, "models", "VAE")
-lora_dir            = os.path.join(webui_path, "models", "Lora")
-embeddings_dir      = os.path.join(webui_path, "embeddings")
-extensions_dir      = os.path.join(webui_path, "extensions")
-download_list       = os.path.join(root_path, "download_list.txt")
+init(autoreset=True)
 
 class CustomDirs(BaseModel):
     url: str
     dst: str
 
-custom_dirs = {
-    "model"       : CustomDirs(url=custom_model_url, dst=models_dir),
-    "vae"         : CustomDirs(url=custom_vae_url, dst=vaes_dir),
-    "embedding"   : CustomDirs(url=custom_embedding_url, dst=embeddings_dir),
-    "lora"        : CustomDirs(url=custom_LoRA_url, dst=lora_dir),
-    "extensions"  : CustomDirs(url=custom_extensions_url, dst=extensions_dir),
-}
+def install_colablib():
+    if not os.path.exists(colablib_path):
+        subprocess.run(['pip', 'install', '-q', 'git+https://github.com/StephenZou-bot/colablib'])
+
+def remove_aiohttp():
+    if os.path.exists(aiohttp_path):
+        subprocess.run(['rm', '-rf', aiohttp_path])
+    
+python_version = ".".join(sys.version.split(".")[:2])
+colablib_path = f"/opt/conda/lib/python{python_version}/dist-packages/colablib"
+aiohttp_path = f"/opt/conda/lib/python{python_version}/site-packages/aiohttp-3.9.1.dist-info"
+
+remove_aiohttp()
+install_colablib()
+
+from pydantic import BaseModel
+from colablib.colored_print import cprint, print_line
+from colablib.utils import py_utils
+from colablib.utils.py_utils import get_filename
+from colablib.sd_models.downloader import aria2_download, download
+from colablib.utils.config_utils import read_config
+from colablib.utils.git_utils import clone_repo
+def detect_environment():
+    iskaggle = os.environ.get('KAGGLE_KERNEL_RUN_TYPE', '')
+    iscolab = 'COLAB_GPU' in os.environ
+    if iscolab:
+        return "/content", "Colab"
+    elif iskaggle:
+        return "/home", "Kaggle"
+    else:
+        cprint('Error. Environment not detected', color="flat_red")
+        exit(1)
+
+def run_command(command, description, debug=True):
+    start_time = time.time()
+    cprint(f"    > {description}", color="flat_cyan")
+    try:
+        result = subprocess.run(command, check=True, shell=True, text=True,
+                                stdout=subprocess.PIPE if debug else subprocess.DEVNULL,
+                                stderr=subprocess.PIPE if debug else subprocess.DEVNULL)
+        if debug:
+            cprint(result.stdout, color="flat_green")
+            cprint(result.stderr, color="flat_red")
+        end_time = time.time()
+        return True, end_time - start_time
+    except subprocess.CalledProcessError as e:
+        cprint(f"Error at [{description}]: {e}", color="flat_red")
+        end_time = time.time()
+        return False, end_time - start_time
+
+def execute_commands(commands, description, debug=True):
+    cprint(f"[+] {description}", color="flat_yellow")
+    start_time = time.time()
+    success_count, error_count = 0, 0
+    for command, desc in commands:
+        success, command_time = run_command(command, desc, debug)
+        success_count += success
+        error_count += not success
+    end_time = time.time()
+    cprint(f"[+] {description} completed in: {end_time - start_time:.2f} secs", color="flat_yellow")
+    return success_count, error_count, end_time - start_time
 
 def parse_urls(filename):
     content = read_config(filename)
-    lines   = content.strip().split('\n')
-    result  = {}
-    key     = ''
+    lines = content.strip().split('\n')
+    result = {}
+    key = ''
     for line in lines:
         if not line.strip():
             continue
@@ -170,19 +96,14 @@ def parse_urls(filename):
             result[key].extend(urls)
     return result
 
-def get_filename(url, token=None):
-    headers = {}
-    if token:
-        headers['Authorization'] = 'Bearer hf_token'
-       
-def custom_download(custom_dirs):
+def custom_download(custom_dirs, user_header, civitai_api_key):
     for key, value in custom_dirs.items():
-        urls     = value.url.split(",")  # Split the comma-separated URLs
-        dst      = value.dst
+        urls = value.url.split(",")  # Split the comma-separated URLs
+        dst = value.dst
 
         if value.url:
-            print_line(0)
-            cprint(f"[+] Downloading {key}.", color="flat_yellow")
+            print_line(0, color="green")
+            cprint(f" [+] Downloading {key}.", color="flat_yellow")
 
         for url in urls:
             url = url.strip()  # Remove leading/trailing whitespaces from each URL
@@ -201,13 +122,13 @@ def custom_download(custom_dirs):
                 elif key == "extensions":
                     clone_repo(url, cwd=dst)
                 else:
-                   download(url=url, filename=filename, user_header=user_header, dst=dst, quiet=False)
+                    download(url=url, filename=filename, user_header=user_header, dst=dst, quiet=False)
 
-def download_from_textfile(filename):
+def download_from_textfile(filename, custom_dirs, civitai_api_key):
     for key, urls in parse_urls(filename).items():
         for url in urls:
             if "civitai.com" in url:
-                url += "&ApiKey={civitai_api_key}" if "?" in url else "?ApiKey={civitai_api_key}"
+                url += f"&ApiKey={civitai_api_key}" if "?" in url else f"?ApiKey={civitai_api_key}"
         key_lower = key.lower()
         if key_lower in custom_dirs:
             if custom_dirs[key_lower].url:
@@ -216,8 +137,8 @@ def download_from_textfile(filename):
                 custom_dirs[key_lower].url = ','.join(urls)
         else:
             cprint(f"Warning: Category '{key}' from the file is not found in custom_dirs.", color="flat_yellow")
-            
-def custom_download_list(url):
+
+def custom_download_list(url, root_path, user_header):
     filename = "custom_download_list.txt"
     filepath = os.path.join(root_path, filename)
     if os.path.exists(filepath):
@@ -227,48 +148,16 @@ def custom_download_list(url):
             url = url.replace('pastebin.com', 'pastebin.com/raw')
     download(url=url, filename=filename, user_header=user_header, dst=root_path, quiet=True)
     return filepath
-    
-########## PASTEBIN DL #################
 
-def download_file_with_aria2(url, save_dir='.'):
-    local_filename = os.path.join(save_dir, url.split('/')[-1])
+def create_custom_dirs():
+    return {
+        "model": CustomDirs(url=custom_model_url, dst=models_dir),
+        "vae": CustomDirs(url=custom_vae_url, dst=vaes_dir),
+        "embedding": CustomDirs(url=custom_embedding_url, dst=embeddings_dir),
+        "lora": CustomDirs(url=custom_LoRA_url, dst=lora_dir),
+        "extensions": CustomDirs(url=custom_extensions_url, dst=extensions_dir),
+    }
 
-    # aria2c command
-    command = [
-        'aria2c',
-        '--dir', save_dir,
-        '--out', local_filename,
-        '--console-log-level=error',
-        '--summary-interval=0',
-        url
-    ]
-    
-    # Start the aria2c process
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    cprint(f"Downloading {url}", color="default")
-    process.wait()  # Ensure the process has completed
-    
-    if process.returncode == 0:
-        cprint(f"File saved as {local_filename}", color="red")
-    else:
-        cprint(f"    Download failed for: {url}", color="flat_red")
-
-def download_from_link_file(link_file_path):
-    with open(link_file_path, 'r') as file:
-        urls = file.readlines()
-    
-    for url in urls:
-        url = url.strip()
-        if url:  # Skip any blank lines
-            download_file_with_aria2(url)
-
-############# TUNNELS #######################
-import cloudpickle as pickle
-try:
-    start_colab
-except:
-    start_colab = int(time.time())-5
-    
 def get_public_ip(version='ipv4'):
     try:
         url = f'https://api64.ipify.org?format=json&{version}=true'
@@ -279,101 +168,136 @@ def get_public_ip(version='ipv4'):
     except Exception as e:
         print(f"Error getting public {version} address:", e)
 
-public_ipv4 = get_public_ip(version='ipv4')
-############# TUNNELS #######################
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ada indo coy !!!.")
-    parser.add_argument("--req", type=str, help="Required file for notebook to run.")
-    parser.add_argument("--config", type=str, help="The URL of your WebUI's config file if you want to import it.")
-    parser.add_argument("--pastebin", type=str, help="Pastebin URL if you want to download model/lora/extensions.")
+def parse_args():
+    parser = argparse.ArgumentParser(description="Script to set up environment and install necessary packages")
+    parser.add_argument("--pastebin", type=str, help="Pastebin URL if you want to download model/lora/extensions.", default="")
     parser.add_argument("--hf_token", type=str, help="HuggingFace's Token if you download it from private repo for Pastebin download.")
     parser.add_argument("--zrok_token", type=str, help="Token for tunneling with Zrok (optional).")
     parser.add_argument("--ngrok_token", type=str, help="Token for tunneling with ngrok (optional).")
     parser.add_argument("--hub_token", type=str, help="Token for HUB extension for easily downloading stuff inside WebUI, do NOT put your token here but instead link file contains the token.")
     parser.add_argument("--debug", action='store_true', help="Enable debug mode.")
-    
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # variable
-    args.req = "https://github.com/DEX-1101/sd-webui-notebook/raw/main/res/req.txt"
-    pastebin_url     = args.pastebin
-    hf_token         = args.hf_token
-    zrok_token       = args.zrok_token
-    ngrok_token      = args.ngrok_token
-    import_config    = args.config
-    secret           = args.hub_token
-    ngrok            = ""
+def main():
+    args = parse_args()
 
-    if args.debug:
-        cprint("Debug mode enabled", color="red")
-        show_output = True
+    ui, env = detect_environment()
+    branch = "master"
+    ui_path = os.path.join(ui, "sdw")
+    os.makedirs(ui_path, exist_ok=True)
+    git_path = os.path.join(ui_path, "extensions")
+    torch_ver = torch.__version__
+    cuda_ver = torch.version.cuda
+    is_gpu = "Yes." if torch.cuda.is_available() else "GPU not detected."
 
-    # SECOND
-    progress_done2 = False
-    progress_thread = Thread(target=progress_bar2)
-    subprocess_thread = Thread(target=run_subprocesses_x)
-    progress_thread.start()
-    subprocess_thread.start()
-    subprocess_thread.join()
-    progress_thread.join()
-
-    # Download the link file
-    download_file_with_aria2(args.req)
-    link_file_path = os.path.join('.', args.req.split('/')[-1])
-    # Download files listed in the link file
-    download_from_link_file(link_file_path)
-
-    ############### UI ####################  
-    result = subprocess.run(["python", "-m", "xformers.info"], capture_output=True, text=True)
-    output_lines = result.stdout.splitlines()
-    if len(output_lines) == 0:
-        print("xFormers not installed")
-    else:
-        xformers_version = output_lines[0]
-    
+    cprint(f"[+] PyTorch Version: {torch_ver} | Cuda: {cuda_ver} | GPU Access: {is_gpu}", color="flat_green")
     print_line(0)
-    cprint(f"PyTorch Version :", torch_ver, "| Cuda :", cuda_ver, "| ", xformers_version, "| GPU :", gpu_status, "| Env :", env, "|", color="red")
+
+    initial_commands = [
+        ("apt-get update", "Update package list"),
+        ("apt -y install aria2", "Install aria2"),
+        ("apt-get install lz4", "Install lz4"),
+        ("pip install colorama", "Install colorama"),
+        ("npm install -g localtunnel", "Install localtunnel")
+    ]
+
+    parallel_commands = [
+        ("curl -s -Lo /usr/bin/cl https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/bin/cl", "Install cloudflared"),
+        (f"cd {ui} && curl -sLO https://github.com/openziti/zrok/releases/download/v0.4.23/zrok_0.4.23_linux_amd64.tar.gz && tar -xzf zrok_0.4.23_linux_amd64.tar.gz && rm -rf zrok_0.4.23_linux_amd64.tar.gz && mv {ui}/zrok /usr/bin", "Install zrok")
+    ]
+
+    resource_commands = [
+        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/sdw.tar.lz4 -o sdw.tar.lz4 && tar -xI lz4 -f sdw.tar.lz4 --directory={ui_path} && rm {ui}/sdw.tar.lz4", "Install UI"),
+        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/site-packages.tar.lz4 -o site-packages.tar.lz4 && tar -xI lz4 -f site-packages.tar.lz4 --directory=/opt/conda/lib/python{python_version}/site-packages && rm {ui}/site-packages.tar.lz4", "Prepare Packages"),
+        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/cache.tar.lz4 -o cache.tar.lz4 && tar -xI lz4 -f cache.tar.lz4 --directory=/ && rm {ui}/cache.tar.lz4", "Prepare Huggingface Cache"),
+        (f"cd {ui_path} && git reset --hard && git pull && git switch {branch} && git pull && git reset --hard", "Update UI")
+    ]
+
+    env_specific_commands = []
+
+    total_success, total_error, grand_total_time = 0, 0, 0
+
+    # Execute initial commands
+    success_count, error_count, total_time = execute_commands(initial_commands, "Installing initial requirements", debug=args.debug)
+    total_success += success_count
+    total_error += error_count
+    grand_total_time += total_time
+
+    # Execute parallel commands
+    cprint(f"[+] Installing parallel commands for [{env}]", color="flat_yellow")
+    parallel_start_time = time.time()
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        future_to_command = {executor.submit(run_command, cmd, desc, args.debug): desc for cmd, desc in parallel_commands}
+        for future in as_completed(future_to_command):
+            desc = future_to_command[future]
+            try:
+                success, command_time = future.result()
+                total_success += success
+                total_error += not success
+                grand_total_time += command_time
+            except Exception as exc:
+                cprint(f'Command {desc} generated an exception: {exc}', color="flat_red")
+                total_error += 1
+    parallel_end_time = time.time()
+    cprint(f"[+] Parallel commands completed in: {parallel_end_time - parallel_start_time:.2f} secs", color="flat_yellow")
+
+    # Execute resource and environment-specific commands
+    success_count, error_count, total_time = execute_commands(resource_commands + env_specific_commands, "Installing resource commands", debug=args.debug)
+    total_success += success_count
+    total_error += error_count
+    grand_total_time += total_time
 
     print_line(0)
-    cprint(f"[+] Installing Requirements", color="flat_yellow")
-    if not os.path.exists("x1101"):
-        run_subprocesses(commands)
-    
-    if args.config:
-        subprocess.run(f"wget -q {import_config} -O {ui}/config.json", shell=True)
-    
-    if args.hub_token:
-        subprocess.run(f"mkdir -p {ui}/x1101 && wget -q {secret} -O {ui}/x1101/sd-hub-token.json", shell=True)
+    cprint(f"[+] {total_error} of {total_success + total_error} commands failed. All completed within: {grand_total_time:.2f} secs", color="flat_yellow")
 
-    if args.ngrok_token:
-        ngrok = f"--ngrok {ngrok_token}"
-    
+    ################# PASTEBIN DL #################
+    root_path = ui  # Assuming root_path is the same as ui
+
+    webui_path = os.path.join(root_path, "sdw")
+
+    custom_model_url = ""
+    custom_vae_url = ""
+    custom_embedding_url = ""
+    custom_LoRA_url = ""
+    custom_extensions_url = ""
+    models_dir = os.path.join(webui_path, "models", "Stable-diffusion")
+    vaes_dir = os.path.join(webui_path, "models", "VAE")
+    lora_dir = os.path.join(webui_path, "models", "Lora")
+    embeddings_dir = os.path.join(webui_path, "embeddings")
+    extensions_dir = os.path.join(webui_path, "extensions")
+    download_list = os.path.join(root_path, "download_list.txt")
+
+    custom_dirs = create_custom_dirs()
+    user_header = f"Authorization: Bearer {args.hf_token}"
     if args.pastebin:
-        start_time    = time.time()
-        textfile_path = download_list
-        if pastebin_url:
-            user_header = f"Authorization: Bearer {hf_token}"
-            textfile_path = custom_download_list(pastebin_url)
-        download_from_textfile(textfile_path)
-        custom_download(custom_dirs)
-        elapsed_time  = py_utils.calculate_elapsed_time(start_time)
-        
-    print_line(0)
-    cprint(f"[+] Starting WebUI...", color="flat_yellow")
-    tunnel_class = pickle.load(open("new_tunnel", "rb"), encoding="utf-8")
-    tunnel_port= 1101
-    tunnel = tunnel_class(tunnel_port)
+        textfile_path = custom_download_list(args.pastebin, root_path, user_header)
+    download_from_textfile(download_list, custom_dirs, args.hf_token)
+    custom_download(custom_dirs, user_header, args.hf_token)
+
+    elapsed_time = py_utils.calculate_elapsed_time(start_time)
+    print_line(0, color="green")
+    cprint(f"[+] Download completed within {elapsed_time}.", color="flat_yellow")
+
+    from colablib.utils.tunnel import Tunnel
+
+    try:
+        start_colab
+    except:
+        start_colab = int(time.time()) - 5
+
+    public_ipv4 = get_public_ip(version='ipv4')
+
+    tunnel_port = 1101
+    tunnel = Tunnel(tunnel_port)
     tunnel.add_tunnel(command="cl tunnel --url localhost:{port}", name="cl", pattern=re.compile(r"[\w-]+\.trycloudflare\.com"))
     tunnel.add_tunnel(command="lt --port {port}", name="lt", pattern=re.compile(r"[\w-]+\.loca\.lt"), note="Password : " + Fore.GREEN + public_ipv4 + Style.RESET_ALL + " rerun cell if 404 error.")
     if args.zrok_token:
-        subprocess.run(f"zrok enable {zrok_token}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(f"zrok enable {args.zrok_token}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         tunnel.add_tunnel(command="zrok share public http://localhost:{port}/ --headless", name="zrok", pattern=re.compile(r"[\w-]+\.share\.zrok\.io"))
-    
+
     with tunnel:
-        #subprocess.run("python -m http.server 1101", shell=True)
-        #os.chdir(ui)
-        subprocess.run(f"echo -n {start_colab} >{ui}/x1101/static/colabTimer.txt", shell=True)
-        lol = f"sed -i -e \"s/\\[\\\"sd_model_checkpoint\\\"\\]/\\[\\\"sd_model_checkpoint\\\",\\\"sd_vae\\\",\\\"CLIP_stop_at_last_layers\\\"\\]/g\" {ui}/x1101/modules/shared_options.py"
-        subprocess.run(lol, shell=True)       
-        subprocess.run(f"cd {ui}/x1101 && python launch.py --port=1101 {ngrok} --api --encrypt-pass=x1101 --xformers --theme dark --enable-insecure-extension-access --disable-console-progressbars --disable-safe-unpickle --no-half-vae", shell=True)
+        subprocess.run(f"echo -n {start_colab} >{webui_path}/static/colabTimer.txt", shell=True)
+        subprocess.run(f"cd {webui_path} && python launch.py --port=1101 --ngrok {args.ngrok_token} --api --xformers --theme dark --enable-insecure-extension-access --disable-console-progressbars --disable-safe-unpickle --no-half-vae", shell=True)
+
+if __name__ == "__main__":
+    main()
