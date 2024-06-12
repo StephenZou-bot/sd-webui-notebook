@@ -23,7 +23,7 @@ def detect_environment():
 ui, env = detect_environment()
 root_path = ui  # Assuming root_path is the same as ui
 
-webui_path = os.path.join(root_path, "sdw")
+webui_path = os.path.join(root_path, "stable-diffusion-webui")
 
 custom_model_url        = ""
 custom_vae_url          = ""
