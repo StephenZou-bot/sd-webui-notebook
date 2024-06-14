@@ -90,9 +90,7 @@ if __name__ == "__main__":
     ]
 
     resource_commands = [
-        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/stable-diffusion-webui.tar.lz4 -o stable-diffusion-webui.tar.lz4 && tar -xI lz4 -f stable-diffusion-webui.tar.lz4 --directory={ui_path} && rm {ui}/stable-diffusion-webui.tar.lz4", "Install UI"),
-        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/site-packages.tar.lz4 -o site-packages.tar.lz4 && tar -xI lz4 -f site-packages.tar.lz4 --directory=/opt/conda/lib/python{python_version}/site-packages && rm {ui}/site-packages.tar.lz4", "Prepare Packages"),
-        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/cache.tar.lz4 -o cache.tar.lz4 && tar -xI lz4 -f cache.tar.lz4 --directory=/ && rm {ui}/cache.tar.lz4", "Prepare Huggingface Cache"),
+        (f"cd {ui} && aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co/datasets/Carmeninkunming/fast-repo-kaggle/resolve/main/sdw.tar.lz4 -o sdw.tar.lz4 && tar -xI lz4 -f sdw.tar.lz4 --directory={ui_path} && rm {ui}/sdw.tar.lz4", "Install UI"),
         (f"cd {ui_path} && git reset --hard && git pull && git switch {branch} && git pull && git reset --hard", "Update UI")
     ]
 
