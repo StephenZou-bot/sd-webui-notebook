@@ -79,7 +79,7 @@ if __name__ == "__main__":
     initial_commands = [
         ("apt-get update", "Update package list"),
         ("apt -y install aria2", "Install aria2"),
-        ("apt-get install lz4 ffmpeg", "Install lz4 ffmpeg"),
+        ("apt-get install lz4 && apt install ffmpeg", "Install lz4 ffmpeg"),
         ("pip install colorama", "Install colorama"),
         ("npm install -g localtunnel", "Install localtunnel")
     ]
