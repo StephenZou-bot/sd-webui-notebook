@@ -86,6 +86,7 @@ if __name__ == "__main__":
 
     parallel_commands = [
         ("curl -s -Lo /usr/bin/cl https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/bin/cl", "Install cloudflared"),
+        ("wget https://github.com/fatedier/frp/releases/download/v0.58.1/frp_0.58.1_linux_amd64.tar.gz && tar -xzf frp_0.58.1_linux_amd64.tar.gz -C /usr/bin --strip-components=1 frp_0.58.1_linux_amd64/frpc && rm frp_0.58.1_linux_amd64.tar.gz","Install Frp"),
         (f"cd {ui} && curl -sLO https://github.com/openziti/zrok/releases/download/v0.4.23/zrok_0.4.23_linux_amd64.tar.gz && tar -xzf zrok_0.4.23_linux_amd64.tar.gz && rm -rf zrok_0.4.23_linux_amd64.tar.gz && mv {ui}/zrok /usr/bin", "Install zrok")
     ]
 
